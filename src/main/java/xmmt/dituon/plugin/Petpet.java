@@ -128,7 +128,7 @@ public final class Petpet extends JavaPlugin {
             return;
         }
 
-        if (messageString.equals(pluginPetService.command)) {
+        if (messageString.equals(pluginPetService.command) || messageString.equals("pet")) {
             switch (pluginPetService.replyFormat) {
                 case MESSAGE:
                     e.getGroup().sendMessage("Petpet KeyList: \n" + pluginPetService.getKeyAliasListString());
@@ -173,10 +173,14 @@ public final class Petpet extends JavaPlugin {
         String key = //解析后的key(随机初始值)
                 pluginPetService.randomableList.get(new Random().nextInt(pluginPetService.randomableList.size()));
         String originKey = null; //解析前的key(可能为alia), 包含keyCommandHead
+//        + (pluginPetService.strictCommand ? (messageString.contains("@") ? "": (messageString.contains("[图片]") ? "": " ")) : "")) ||
+
         for (String commandKey : pluginPetService.getDataMap().keySet()) { //key
             if (messageString.startsWith(pluginPetService.commandHead + commandKey
-                    + (pluginPetService.strictCommand ? ' ' : "")) ||
-                    messageString.equals(pluginPetService.commandHead + commandKey)) {
+                    + (pluginPetService.strictCommand ? " " : "")) ||
+                    messageString.equals(pluginPetService.commandHead + commandKey)
+//                    || (messageString.contains(commandKey)&&  ( messageString.contains("@") || messageString.contains("[图片]")))
+                    ) {
                 originKey = commandKey;
                 key = commandKey.replace(pluginPetService.commandHead, "");
                 ignore = false;
@@ -185,8 +189,10 @@ public final class Petpet extends JavaPlugin {
         }
         if (ignore) for (String alia : pluginPetService.getAliaMap().keySet()) { //别名
             if (messageString.startsWith(pluginPetService.commandHead + alia
-                    + (pluginPetService.strictCommand ? ' ' : "")) ||
-                    messageString.equals(pluginPetService.commandHead + alia)) {
+                    + (pluginPetService.strictCommand ? " " : "")) ||
+                    messageString.equals(pluginPetService.commandHead + alia)
+//                    || (messageString.contains(alia)&&  ( messageString.contains("@") || messageString.contains("[图片]")))
+            ) {
                 originKey = alia;
                 String[] randomArray = pluginPetService.getAliaMap().get(
                         alia.substring(pluginPetService.commandHead.length()));

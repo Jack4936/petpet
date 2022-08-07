@@ -35,6 +35,9 @@ public class BasePetService {
         }
 
         StringBuilder keyListStringBuilder = new StringBuilder();
+//        keyList.add("开启/关闭 : 娱乐指令 on/off");
+//        keyList.add("使用 : key + 空格 + 群名字/@群员/图片");
+        keyListStringBuilder.append("\n").append("开启/关闭 : 娱乐指令 on/off").append("\n").append("使用 : key + 空格 + 群名字/@群员/图片").append("\n");
         for (String path : children) {
             if (path.equals(FONTS_FOLDER)) {
                 // load fonts folder
