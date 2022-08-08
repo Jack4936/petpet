@@ -21,7 +21,7 @@ public final class Petpet extends JavaPlugin {
     public static final Petpet INSTANCE = new Petpet();
     public static final float VERSION = 4.3F;
 
-    private static final ArrayList<Group> disabledGroup = new ArrayList<>();
+    private static List<Long> disabledGroup;
     public static PluginPetService service;
     public static File dataFolder;
 
@@ -53,15 +53,16 @@ public final class Petpet extends JavaPlugin {
 
         if (service.headless) System.setProperty("java.awt.headless", "true");
         if (service.autoUpdate) new Thread(DataUpdater::autoUpdate).start();
+        disabledGroup = service.disabledGroups;
 
         getLogger().info("\n             _                _   \n  _ __   ___| |_   _ __   ___| |_ \n" +
                 " | '_ \\ / _ \\ __| | '_ \\ / _ \\ __|\n | |_) |  __/ |_  | |_) |  __/ |_ \n" +
                 " | .__/ \\___|\\__| | .__/ \\___|\\__|\n |_|              |_|             v" + VERSION);
 
-        GlobalEventChannel.INSTANCE.subscribeAlways(NudgeEvent.class,
+        if (service.probability > 0) GlobalEventChannel.INSTANCE.subscribeAlways(NudgeEvent.class,
                 service.messageSynchronized ? this::onNudgeSynchronized : this::onNudge);
 
-        if (service.probability > 0) GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessageEvent.class,
+        GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessageEvent.class,
                 service.messageSynchronized ? this::onGroupMessageSynchronized : this::onGroupMessage);
 
         if (service.respondReply) {
@@ -90,8 +91,8 @@ public final class Petpet extends JavaPlugin {
 
     private void responseNudge(NudgeEvent e) {
         // 如果禁用了petpet就返回
-        if (!(e.getSubject() instanceof Group)
-                || service.nudgeCanBeDisabled || isDisabled((Group) e.getSubject())) return;
+        if ((!(e.getSubject() instanceof Group) || isDisabled((Group) e.getSubject()))
+                && service.nudgeCanBeDisabled) return;
         try {
             service.sendImage((Group) e.getSubject(), (Member) e.getFrom(), (Member) e.getTarget(), true);
         } catch (Exception ex) { // 如果无法把被戳的对象转换为Member(只有Bot无法强制转换为Member对象)
@@ -127,19 +128,19 @@ public final class Petpet extends JavaPlugin {
 
         if (messageString.equals(service.command + " off") &&
                 !isDisabled(e.getGroup()) && isPermission(e)) {
-            disabledGroup.add(e.getGroup());
+            disabledGroup.add(e.getGroup().getId());
             sendReplyMessage(e, "已禁用 " + service.command);
             return;
         }
 
         if (messageString.equals(service.command + " on") &&
                 isDisabled(e.getGroup()) && isPermission(e)) {
-            disabledGroup.remove(e.getGroup());
+            disabledGroup.remove(e.getGroup().getId());
             sendReplyMessage(e, "已启用 " + service.command);
             return;
         }
 
-        if (service.messageCanBeDisabled || isDisabled(e.getGroup())) return;
+        if (service.messageCanBeDisabled && isDisabled(e.getGroup())) return;
 
         if (messageString.equals(service.command)|| messageString.equals("pet")) {
             switch (service.replyFormat) {
@@ -191,14 +192,17 @@ public final class Petpet extends JavaPlugin {
                 continue;
             }
             if (singleMessage instanceof At) {
+                fuzzyLock = true;
+
+                At at = (At) singleMessage;
+                if (at.getTarget() == e.getSender().getId()) continue;
+
                 fromName = getNameOrNick(e.getSender());
                 fromUrl = e.getSender().getAvatarUrl();
 
-                Member to = e.getGroup().get(((At) singleMessage).getTarget());
+                Member to = e.getGroup().get(at.getTarget());
                 toName = getNameOrNick(to);
                 toUrl = to.getAvatarUrl();
-
-                fuzzyLock = true;
                 continue;
             }
             if (singleMessage instanceof Image) {
@@ -291,7 +295,7 @@ public final class Petpet extends JavaPlugin {
 
     private boolean isDisabled(Group group) {
         if (disabledGroup != null && !disabledGroup.isEmpty()) {
-            return disabledGroup.contains(group);
+            return disabledGroup.contains(group.getId());
         }
         return false;
     }
