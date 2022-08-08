@@ -19,7 +19,7 @@ import java.util.*;
 
 public final class Petpet extends JavaPlugin {
     public static final Petpet INSTANCE = new Petpet();
-    public static final float VERSION = 4.2F;
+    public static final float VERSION = 4.3F;
 
     private static final ArrayList<Group> disabledGroup = new ArrayList<>();
     public static PluginPetService service;
@@ -123,8 +123,6 @@ public final class Petpet extends JavaPlugin {
     private void responseMessage(GroupMessageEvent e) {
         if (!e.getMessage().contains(PlainText.Key)) return;
 
-        if (service.messageSynchronized || isDisabled(e.getGroup())) return;
-
         String messageString = e.getMessage().contentToString().trim();
 
         if (messageString.equals(service.command + " off") &&
@@ -141,6 +139,7 @@ public final class Petpet extends JavaPlugin {
             return;
         }
 
+        if (service.messageCanBeDisabled || isDisabled(e.getGroup())) return;
 
         if (messageString.equals(service.command)|| messageString.equals("pet")) {
             switch (service.replyFormat) {
