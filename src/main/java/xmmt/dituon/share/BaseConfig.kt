@@ -42,6 +42,10 @@ enum class TextWrap {
     NONE, BREAK, ZOOM
 }
 
+enum class TextStyle{
+    PLAIN, BOLD, ITALIC
+}
+
 @Serializable
 data class TextData @JvmOverloads constructor(
     val text: String,
@@ -50,7 +54,8 @@ data class TextData @JvmOverloads constructor(
     val font: String? = null,
     val size: Int? = null,
     val align: TextAlign? = TextAlign.LEFT,
-    val wrap: TextWrap? = TextWrap.NONE
+    val wrap: TextWrap? = TextWrap.NONE,
+    val style: TextStyle? = TextStyle.PLAIN
 )
 
 @Serializable
@@ -65,7 +70,7 @@ enum class AvatarType {
     FROM, TO, GROUP, BOT
 }
 
-enum class PosType {
+enum class AvatarPosType {
     ZOOM, DEFORM
 }
 
@@ -81,7 +86,7 @@ enum class Style {
 data class AvatarData @JvmOverloads constructor(
     val type: AvatarType,
     val pos: JsonArray? = null,
-    val posType: PosType? = PosType.ZOOM,
+    val posType: AvatarPosType? = AvatarPosType.ZOOM,
     val crop: JsonArray? = null,
     val cropType: CropType? = CropType.NONE,
     val style: List<Style>? = emptyList(),
@@ -108,6 +113,7 @@ data class GifAvatarExtraDataProvider(
 )
 
 @Serializable
-data class BackgroundData constructor(
-    val size: JsonArray
+data class BackgroundData @JvmOverloads constructor(
+    val size: JsonArray,
+    val color: JsonElement? = null
 )

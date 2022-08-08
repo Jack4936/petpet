@@ -7,7 +7,9 @@ import net.mamoe.mirai.contact.Group;
 import net.mamoe.mirai.contact.Member;
 import net.mamoe.mirai.contact.MemberPermission;
 import net.mamoe.mirai.event.GlobalEventChannel;
-import net.mamoe.mirai.event.events.*;
+import net.mamoe.mirai.event.events.GroupMessageEvent;
+import net.mamoe.mirai.event.events.GroupMessagePostSendEvent;
+import net.mamoe.mirai.event.events.NudgeEvent;
 import net.mamoe.mirai.message.data.*;
 import xmmt.dituon.share.BaseConfigFactory;
 import xmmt.dituon.share.TextExtraData;
@@ -26,7 +28,8 @@ public final class Petpet extends JavaPlugin {
     private static MessageSource previousMessage;
     private static NudgeEvent previousNudge;
 
-    private static HashMap<Long, String> imageCachePool;
+    private static LinkedHashMap<Long, String> imageCachePool;
+    private static Set<String> keyAliaSet = null;
 
     private Petpet() {
         super(new JvmPluginDescriptionBuilder("xmmt.dituon.petpet", String.valueOf(VERSION))
@@ -57,12 +60,19 @@ public final class Petpet extends JavaPlugin {
 
         GlobalEventChannel.INSTANCE.subscribeAlways(NudgeEvent.class,
                 service.messageSynchronized ? this::onNudgeSynchronized : this::onNudge);
-        GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessageEvent.class,
+
+        if (service.probability > 0) GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessageEvent.class,
                 service.messageSynchronized ? this::onGroupMessageSynchronized : this::onGroupMessage);
+
         if (service.respondReply) {
-            imageCachePool = new HashMap<>();
+            imageCachePool = new LinkedHashMap<>(service.cachePoolSize, 0.75f, true) {
+                @Override
+                public boolean removeEldestEntry(Map.Entry eldest) {
+                    return size() > service.cachePoolSize;
+                }
+            };
             GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessageEvent.class, this::cacheMessageImage);
-//            GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessagePostSendEvent.class, this::cacheMessageImage);
+            GlobalEventChannel.INSTANCE.subscribeAlways(GroupMessagePostSendEvent.class, this::cacheMessageImage);
         }
     }
 
@@ -80,7 +90,8 @@ public final class Petpet extends JavaPlugin {
 
     private void responseNudge(NudgeEvent e) {
         // 如果禁用了petpet就返回
-        if (!(e.getSubject() instanceof Group) || isDisabled((Group) e.getSubject())) return;
+        if (!(e.getSubject() instanceof Group)
+                || service.nudgeCanBeDisabled || isDisabled((Group) e.getSubject())) return;
         try {
             service.sendImage((Group) e.getSubject(), (Member) e.getFrom(), (Member) e.getTarget(), true);
         } catch (Exception ex) { // 如果无法把被戳的对象转换为Member(只有Bot无法强制转换为Member对象)
@@ -111,6 +122,8 @@ public final class Petpet extends JavaPlugin {
 
     private void responseMessage(GroupMessageEvent e) {
         if (!e.getMessage().contains(PlainText.Key)) return;
+
+        if (service.messageSynchronized || isDisabled(e.getGroup())) return;
 
         String messageString = e.getMessage().contentToString().trim();
 
@@ -157,8 +170,6 @@ public final class Petpet extends JavaPlugin {
         }
 
 
-        String key = null;
-
 
         boolean fuzzyLock = false; //锁住模糊匹配
 
@@ -204,16 +215,35 @@ public final class Petpet extends JavaPlugin {
         ArrayList<String> spanList = new ArrayList<>(Arrays.asList(commandData.trim().split("\\s+")));
         if (spanList.isEmpty()) return;
 
+        String key = null;
         if (service.command.equals(spanList.get(0))) {
             spanList.remove(0); //去掉指令头
             key = service.randomableList.get(new Random().nextInt(service.randomableList.size())); //随机key
         }
 
+        if (!spanList.isEmpty() && !service.strictCommand) { //匹配非标准格式指令
+            if (keyAliaSet == null) { //按需初始化
+                keyAliaSet = new HashSet<>(service.getDataMap().keySet());
+                keyAliaSet.addAll(service.getAliaMap().keySet());
+            }
+            for (String k : keyAliaSet) {
+                if (spanList.get(0).startsWith(k)) {
+                    String span = spanList.set(0, k);
+                    if (span.length() != k.length()) {
+                        spanList.add(1, span.substring(k.length()));
+                    }
+                }
+            }
+        }
+
         if (!spanList.isEmpty()) {
-            if (service.getDataMap().containsKey(spanList.get(0))) key = spanList.get(0); //key
-            else if (service.getAliaMap().containsKey(spanList.get(0))) { //别名
+            if (service.getDataMap().containsKey(spanList.get(0))) { //key
+                key = spanList.get(0);
+                spanList.remove(0);
+            } else if (service.getAliaMap().containsKey(spanList.get(0))) { //别名
                 String[] keys = service.getAliaMap().get(spanList.get(0));
                 key = keys[new Random().nextInt(keys.length)];
+                spanList.remove(0);
             }
         }
 
@@ -242,7 +272,6 @@ public final class Petpet extends JavaPlugin {
     private void cacheMessageImage(GroupMessageEvent e) {
         for (SingleMessage singleMessage : e.getMessage()) {
             if (singleMessage instanceof Image) {
-                if (imageCachePool.size() >= service.cachePoolSize) imageCachePool.clear();
                 long id = e.getGroup().getId() + e.getMessage().get(MessageSource.Key).getIds()[0];
                 imageCachePool.put(id, Image.queryUrl((Image) singleMessage));
                 return;
@@ -250,18 +279,15 @@ public final class Petpet extends JavaPlugin {
         }
     }
 
-
-//    private void cacheMessageImage(GroupMessagePostSendEvent e) {
-//        for (SingleMessage singleMessage : e.getMessage()) {
-//            if (singleMessage instanceof Image) {
-//                if (imageCachePool.size() >= service.cachePoolSize) imageCachePool.clear();
-//                //GroupMessagePostSendEvent获取的MessageChain不包含MessageSource
-//                long id = e.getTarget().getId() + e.getMessage().get(MessageSource.Key).getIds()[0];
-//                imageCachePool.put(id, Image.queryUrl((Image) singleMessage));
-//                return;
-//            }
-//        }
-//    }
+    private void cacheMessageImage(GroupMessagePostSendEvent e) {
+        for (SingleMessage singleMessage : e.getMessage()) {
+            if (singleMessage instanceof Image) {
+                long id = e.getTarget().getId() + e.getReceipt().getSource().getIds()[0];
+                imageCachePool.put(id, Image.queryUrl((Image) singleMessage));
+                return;
+            }
+        }
+    }
 
 
     private boolean isDisabled(Group group) {

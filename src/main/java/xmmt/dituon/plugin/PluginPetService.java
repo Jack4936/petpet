@@ -17,7 +17,7 @@ import java.util.Random;
 public class PluginPetService extends BasePetService {
 
     protected String command = "pet";
-    private short probability;
+    public short probability = 30;
     protected String commandHead = "";
     protected boolean respondSelfNudge = false;
     protected boolean respondReply = true;
@@ -32,6 +32,9 @@ public class PluginPetService extends BasePetService {
     protected String repositoryUrl = "https://dituon.github.io/petpet";
     protected ArrayList<String> disabledKey = new ArrayList<>();
     protected ArrayList<String> randomableList = new ArrayList<>();
+
+    public boolean nudgeCanBeDisabled = true;
+    public boolean messageCanBeDisabled = false;
 
     public void readConfigByPluginAutoSave() {
         PluginConfig config = PetPetAutoSaveConfig.INSTANCE.content.get();
@@ -51,12 +54,31 @@ public class PluginPetService extends BasePetService {
         cachePoolSize = config.getCachePoolSize() != null ? config.getCachePoolSize() : 10000;
         replyFormat = config.getKeyListFormat();
         fuzzy = config.getFuzzy();
-//        strictCommand = config.getStrictCommand();
+        strictCommand = config.getStrictCommand();
         messageSynchronized = config.getSynchronized();
         headless = config.getHeadless();
         autoUpdate = config.getAutoUpdate();
         updateIgnore = config.getUpdateIgnore();
         repositoryUrl = config.getRepositoryUrl();
+
+        switch (config.getDisablePolicy()){
+            case NONE:
+                nudgeCanBeDisabled = false;
+                messageSynchronized = false;
+                break;
+            case NUDGE:
+                nudgeCanBeDisabled = true;
+                messageSynchronized = false;
+                break;
+            case MESSAGE:
+                nudgeCanBeDisabled = false;
+                messageSynchronized = true;
+                break;
+            case FULL:
+                nudgeCanBeDisabled = true;
+                messageSynchronized = true;
+                break;
+        }
 
         for (String path : config.getDisabled()) {
             disabledKey.add(path.replace("\"", ""));
